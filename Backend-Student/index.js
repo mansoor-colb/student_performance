@@ -3,6 +3,8 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const app = express();
+const jwt = require('jsonwebtoken');
+require("dotenv").config()
 app.use(cors());
 var CryptoJS = require("crypto-js");
 app.use(bodyParser.json());
@@ -17,8 +19,7 @@ const Exam = require("./exam");
 const Student = require("./student");
 const fs = require("fs");
 const path = require("path");
-const uri =
-  "mongodb+srv://web1234:web1234@clusternewz.o2wezdx.mongodb.net/StudentManagement?retryWrites=true&w=majority";
+const uri =process.env.MONGOURL;
 const mongoose = require("mongoose");
 mongoose
   .connect(uri, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -35,9 +36,51 @@ mongoose
     console.log(err);
   });
 
+  const secretKey = process.env.SECRETKEY;
+  const secretKey2 =process.env.SECRETKEY2
+
+
+ async function generateToken(userId) {
+    return jwt.sign({ userId }, secretKey, {expiresIn: '18s'} );
+  }
+
+  async function verifyToken(token) {
+    return new Promise((resolve, reject) => {
+      jwt.verify(token, secretKey, (err, decoded) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(decoded);
+        }
+      });
+    });
+  }
+
+
+
+  async function handleProtectedRoute(req) {
+    const token = req.headers.authorization?.split(' ')[1];
+  
+    if (token) {
+      try {
+     
+        const decoded = await verifyToken(token);
+        return "success"
+      } catch (err) {
+        if (err.name === 'TokenExpiredError') {
+         
+          return 'Token expired' ;
+        } else {
+          return 'Invalid token' ;
+        }
+      }
+    } else {
+      return 'Token not provided' ;
+    }
+  }
 async function encrypt(str) {
   var ciphertext = CryptoJS.AES.encrypt(str, "secretthavells").toString();
-  // console.log(ciphertext)
+
   return ciphertext;
 }
 
@@ -57,12 +100,12 @@ app.post("/signup", async (req, res) => {
 
   try {
     if (item.length == 0) {
-      res.send({ status: 0, data: "No user" });
+      res.status(404).send({ status: 0, data: "No user" });
     } else {
-      res.send({ status: 200, data: item });
+      res.status(200).send({ status: 200, data: item });
     }
   } catch (err) {
-    res.send({ status: 2, data: err });
+    res.status(404).send({ status: 2, data: err });
     console.log(err);
   }
 });
@@ -86,15 +129,21 @@ app.post("/signupstu", async (req, res) => {
      
 
       if(str==req.body.Password){
-        res.send({
-          status: 200,
-          data: {
-            val: item[0].isactive,
-            id: item[0].student_id,
-            name: item[0].student_name,
-            role: "stu",
-          },
-        });
+    
+    
+         generateToken(item[0].student_id).then((token)=>{
+          res.status(200).send({
+            status: 200,
+            token:token,
+            data: {
+              val: item[0].isactive,
+              id: item[0].student_id,
+              name: item[0].student_name,
+              role: "stu",
+            },
+          });
+
+         })
       }
       else{
         res.send({status:0})
@@ -124,7 +173,7 @@ app.post("/addexam", async (req, res) => {
   });
   const item = await newItem.save();
   try {
-    res.send({ status: 200, data: item });
+    res.status(200).send({ status: 200, data: item });
     console.log("Done");
   } catch (err) {
     res.send({ status: 2, data: err });
@@ -139,7 +188,7 @@ app.post("/checkexist", async (req, res) => {
     if (item.length == 0) {
       res.send({ status: 0, data: item });
     } else {
-      res.send({ status: 200, data: item });
+      res.status(200).send({ status: 200, data: item });
     }
   } catch (err) {
     console.log(err);
@@ -162,7 +211,7 @@ app.post("/getstudentfilter", async (req, res) => {
     if (item.length == 0) {
       res.send({ status: 0, data: item });
     } else {
-      res.send({ status: 200, data: item });
+      res.status(200).send({ status: 200, data: item });
     }
   } catch (err) {
     console.log(err);
@@ -178,7 +227,7 @@ app.post("/checkstuexistmail", async (req, res) => {
     if (item.length == 0) {
       res.send({ status: 0, data: item });
     } else {
-      res.send({ status: 200, data: item });
+      res.status(200).send({ status: 200, data: item });
     }
   } catch (err) {
     console.log(err);
@@ -194,7 +243,7 @@ app.post("/checkstuexistusn", async (req, res) => {
     if (item.length == 0) {
       res.send({ status: 0, data: item });
     } else {
-      res.send({ status: 200, data: item });
+      res.status(200).send({ status: 200, data: item });
     }
   } catch (err) {
     console.log(err);
@@ -208,7 +257,7 @@ app.get("/getexam", async (req, res) => {
     if (item.length == 0) {
       res.send({ status: 0, data: item });
     } else {
-      res.send({ status: 200, data: item });
+      res.status(200).send({ status: 200, data: item });
     }
   } catch (err) {
     console.log(err);
@@ -234,7 +283,7 @@ async function mail(to, sub, body) {
     service: "gmail",
     auth: {
       user: "webdearsproject@gmail.com",
-      pass: "iefrtrdbsudvpsyx",
+      pass: process.env.EMAILPASS,
     },
   });
 
@@ -375,10 +424,29 @@ app.post("/getstudentexam", async (req, res) => {
   let item2 = await Exam.find({});
   let item3 = await Student.find({});
   if (!item) {
+ 
     res.send({ status: 0, data: "error" });
   } else {
+    handleProtectedRoute(req).then((msg)=>{
+      console.log(msg)
+      if(msg=="success"){
+
+        res.status(200).send({ data1: item, dat2: item2, status: 200, data3: item3 });
+      }
+      else if(msg=="Token expired"){
+        const refreshToken = jwt.sign({ userId: req.body.id}, secretKey, { expiresIn: '12s' });
+        res.status(200).send({ data1: item, dat2: item2, status: 201, data3: item3,msg:msg,token:refreshToken });
+        
+      }
+      else if(msg=="Invalid token"){
+        res.status(401).send({  status: 401, data: msg });
+      }
+      else if(msg=="Token not provided"){
+        res.status(401).send({  status: 401, data: msg });
+      }
+      
+    })
     console.log(item);
-    res.send({ data1: item, dat2: item2, status: 200, data3: item3 });
   }
 });
 
