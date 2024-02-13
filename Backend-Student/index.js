@@ -418,6 +418,7 @@ app.post("/getstudent", async (req, res) => {
 });
 
 app.post("/getstudentexam", async (req, res) => {
+
   let item = await Student.findOne({
     student_id: req.body.id,
   });
@@ -427,6 +428,11 @@ app.post("/getstudentexam", async (req, res) => {
  
     res.send({ status: 0, data: "error" });
   } else {
+    if(req.body.admin || req.body.admin==1){
+      res.status(200).send({ data1: item, dat2: item2, status: 200, data3: item3 });
+      
+    }
+    else{
     handleProtectedRoute(req).then((msg)=>{
       console.log(msg)
       if(msg=="success"){
@@ -442,11 +448,12 @@ app.post("/getstudentexam", async (req, res) => {
         res.status(401).send({  status: 401, data: msg });
       }
       else if(msg=="Token not provided"){
-        res.status(401).send({  status: 401, data: msg });
+        console.log("kkkkkkkkkkkkkkkkkk")
+        res.status(401).send({ status: 401, data: msg });
       }
       
-    })
-    console.log(item);
+    })}
+    // console.log(item);
   }
 });
 
